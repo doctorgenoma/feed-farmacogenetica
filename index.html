@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Radar Farmacogenómica</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+        .config-box { background: #f0f0f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .article { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
+        .category { font-size: 0.8em; background: #007bff; color: white; padding: 3px 8px; border-radius: 12px; }
+        .summary-box { background: #e8f4f8; padding: 10px; margin-top: 10px; border-left: 4px solid #007bff; display: none; }
+        input[type="password"] { width: 300px; padding: 5px; }
+        button { padding: 5px 10px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>🧬 Radar Farmacogenética</h1>
+    
+    <div class="config-box">
+        <label for="apiKey">Gemini API Key (Se guarda en tu navegador):</label><br>
+        <input type="password" id="apiKey" placeholder="AIzaSy...">
+        <button onclick="saveKey()">Guardar API Key</button>
+        <span id="keyStatus" style="color: green; font-size: 0.9em;"></span>
+    </div>
+
+    <div id="feedContainer">Cargando publicaciones...</div>
+
+    <script>
+        // Cargar clave al inicio
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if(savedKey) {
+                document.getElementById('apiKey').value = savedKey;
+                document.getElementById('keyStatus').innerText = "Clave cargada.";
+            }
+            loadFeed();
+        });
+
+        function saveKey() {
+            const key = document.getElementById('apiKey').value;
+            localStorage.setItem('gemini_api_key', key);
+            document.getElementById('keyStatus').innerText = "¡Guardada en localStorage!";
+        }
+
+        async function loadFeed() {
+            try {
+                // Añadimos un timestamp para evitar la caché del navegador
+                const response = await fetch('feed_data.json?t=' + new Date().getTime());
+                const data = await response.json();
+                const container = document.getElementById('feedContainer');
+                container.innerHTML = '';
+
+                data.forEach((item, index) => {
+                    const articleDiv = document.createElement('div');
+                    articleDiv.className = 'article';
+                    articleDiv.innerHTML = `
+                        <span class="category">${item.category}</span>
+                        <h3><a href="${item.link}" target="_blank">${item.title}</a></h3>
+                        <p style="font-size: 0.9em; color: #555;">Original: ${item.original_title}</p>
+                        <button onclick="summarize(${index})">🤖 Generar Resumen</button>
+                        <div id="summary-${index}" class="summary-box"></div>
+                    `;
+                    container.appendChild(articleDiv);
+                });
+                window.feedData = data; // Guardar en global para acceder luego
+            } catch (error) {
+                document.getElementById('feedContainer').innerHTML = "Error cargando el feed. ¿Se ha ejecutado el GitHub Action?";
+            }
+        }
+
+        async function summarize(index) {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) { alert("Por favor, introduce y guarda tu API Key primero."); return; }
+
+            const item = window.feedData[index];
+            const summaryBox = document.getElementById(`summary-${index}`);
+            summaryBox.style.display = 'block';
+            summaryBox.innerText = "Pensando el resumen...";
+
+            const prompt = `Actúa como un experto en farmacogenética. Resume en un único párrafo en español, de forma clara y científica, el siguiente texto extraído de una publicación: "${item.raw_text}"`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+                
+                const result = await response.json();
+                if(result.error) throw new Error(result.error.message);
+                
+                summaryBox.innerText = result.candidates[0].content.parts[0].text;
+            } catch (error) {
+                summaryBox.innerText = "Error: " + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
