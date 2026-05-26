@@ -4,35 +4,40 @@
     <meta charset="UTF-8">
     <title>Radar Farmacogenómica</title>
     <style>
-        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-        .config-box { background: #f0f0f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .article { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 8px; }
-        .category { font-size: 0.8em; background: #007bff; color: white; padding: 3px 8px; border-radius: 12px; }
-        .summary-box { background: #e8f4f8; padding: 10px; margin-top: 10px; border-left: 4px solid #007bff; display: none; }
-        input[type="password"] { width: 300px; padding: 5px; }
-        button { padding: 5px 10px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; }
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #333; }
+        .config-box { background: #f0f4f8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #d0d7de; }
+        .article { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .category { font-size: 0.8em; background: #007bff; color: white; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
+        .preview-box { padding: 10px; background: #f8f9fa; border-radius: 4px; margin-top: 5px; font-size: 0.9em; color: #555; border-left: 3px solid #6c757d; }
+        .summary-box { background: #e8f4f8; padding: 15px; margin-top: 10px; border-left: 4px solid #28a745; border-radius: 4px; display: none; font-weight: 500; }
+        input[type="password"] { width: 300px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 6px 12px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; margin-top: 5px; }
+        button:hover { background: #218838; }
+        details { margin: 10px 0; }
+        summary { cursor: pointer; color: #0056b3; font-weight: 600; font-size: 0.9em; }
+        summary:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
 
-    <h1>🧬 Radar Farmacogenética</h1>
+    <h1>🧬 Radar de Farmacogenética y Farmacogenómica</h1>
     
     <div class="config-box">
-        <label for="apiKey">Gemini API Key (Se guarda en tu navegador):</label><br>
+        <label for="apiKey"><strong>Gemini API Key:</strong> (Se guarda de forma segura en tu navegador)</label><br><br>
         <input type="password" id="apiKey" placeholder="AIzaSy...">
-        <button onclick="saveKey()">Guardar API Key</button>
-        <span id="keyStatus" style="color: green; font-size: 0.9em;"></span>
+        <button onclick="saveKey()" style="background: #007bff;">Guardar Clave</button>
+        <span id="keyStatus" style="color: #28a745; font-size: 0.9em; margin-left: 10px;"></span>
     </div>
 
-    <div id="feedContainer">Cargando publicaciones...</div>
+    <div id="feedContainer">Cargando publicaciones recientes...</div>
 
     <script>
-        // Cargar clave al inicio
+        // Cargar la API Key guardada al iniciar la página
         document.addEventListener("DOMContentLoaded", () => {
             const savedKey = localStorage.getItem('gemini_api_key');
             if(savedKey) {
                 document.getElementById('apiKey').value = savedKey;
-                document.getElementById('keyStatus').innerText = "Clave cargada.";
+                document.getElementById('keyStatus').innerText = "✓ Clave lista en tu PC";
             }
             loadFeed();
         });
@@ -40,32 +45,45 @@
         function saveKey() {
             const key = document.getElementById('apiKey').value;
             localStorage.setItem('gemini_api_key', key);
-            document.getElementById('keyStatus').innerText = "¡Guardada en localStorage!";
+            document.getElementById('keyStatus').innerText = "✓ ¡Guardada en localStorage!";
         }
 
         async function loadFeed() {
             try {
-                // Añadimos un timestamp para evitar la caché del navegador
+                // Forzamos la descarga del JSON ignorando la caché del navegador
                 const response = await fetch('feed_data.json?t=' + new Date().getTime());
                 const data = await response.json();
                 const container = document.getElementById('feedContainer');
                 container.innerHTML = '';
+
+                if(data.length === 0) {
+                    container.innerHTML = "<p>No hay artículos detectados esta semana.</p>";
+                    return;
+                }
 
                 data.forEach((item, index) => {
                     const articleDiv = document.createElement('div');
                     articleDiv.className = 'article';
                     articleDiv.innerHTML = `
                         <span class="category">${item.category}</span>
-                        <h3><a href="${item.link}" target="_blank">${item.title}</a></h3>
-                        <p style="font-size: 0.9em; color: #555;">Original: ${item.original_title}</p>
-                        <button onclick="summarize(${index})">🤖 Generar Resumen</button>
+                        <h3 style="margin: 10px 0 5px 0;"><a href="${item.link}" target="_blank">${item.title}</a></h3>
+                        <p style="font-size: 0.85em; color: #666; margin: 0 0 10px 0;"><strong>Original:</strong> <em>${item.original_title}</em></p>
+                        
+                        <details>
+                            <summary>📋 Ver previa del RSS (Texto original sin procesar)</summary>
+                            <div class="preview-box">
+                                ${item.raw_text ? item.raw_text : "No hay previa de texto disponible en el canal RSS de origen."}
+                            </div>
+                        </details>
+
+                        <button onclick="summarize(${index})">🤖 Generar Resumen con IA</button>
                         <div id="summary-${index}" class="summary-box"></div>
                     `;
                     container.appendChild(articleDiv);
                 });
-                window.feedData = data; // Guardar en global para acceder luego
+                window.feedData = data; 
             } catch (error) {
-                document.getElementById('feedContainer').innerHTML = "Error cargando el feed. ¿Se ha ejecutado el GitHub Action?";
+                document.getElementById('feedContainer').innerHTML = "❌ Error cargando el feed. Asegúrate de haber ejecutado el GitHub Action con éxito.";
             }
         }
 
@@ -76,9 +94,9 @@
             const item = window.feedData[index];
             const summaryBox = document.getElementById(`summary-${index}`);
             summaryBox.style.display = 'block';
-            summaryBox.innerText = "Pensando el resumen...";
+            summaryBox.innerHTML = "⏳ <em>Leyendo la previa y redactando resumen en español...</em>";
 
-            const prompt = `Actúa como un experto en farmacogenética. Resume en un único párrafo en español, de forma clara y científica, el siguiente texto extraído de una publicación: "${item.raw_text}"`;
+            const prompt = `Actúas como un experto en farmacogenética y medicina de precisión. A partir del siguiente texto/abstract extraído de una publicación, genera un único párrafo resumen en español que sea riguroso, claro y directo. No añadas introducciones ni saludos. Texto: "${item.raw_text}"`;
 
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -92,9 +110,9 @@
                 const result = await response.json();
                 if(result.error) throw new Error(result.error.message);
                 
-                summaryBox.innerText = result.candidates[0].content.parts[0].text;
+                summaryBox.innerHTML = `<strong>Resumen IA:</strong> ${result.candidates[0].content.parts[0].text}`;
             } catch (error) {
-                summaryBox.innerText = "Error: " + error.message;
+                summaryBox.innerHTML = `<span style="color:red;">❌ Error: ${error.message}</span>`;
             }
         }
     </script>
